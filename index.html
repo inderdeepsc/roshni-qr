@@ -4,233 +4,330 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
 <title>Dekha — Roshni</title>
-<link rel="preload" href="chime.mp3" as="audio">
 <style>
- :root{
-   --text-color:#fff;
-   --glow-a: rgba(255,230,170,0.95);
-   --glow-b: rgba(255,150,60,0.70);
-   --bg-dark: #010101;
- }
- html,body{height:100%;margin:0;background:var(--bg-dark);font-family:Inter,system-ui,Arial;color:var(--text-color);}
- #app{position:relative;height:100vh;overflow:hidden;}
- video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);filter:brightness(0.6) contrast(1.05) saturate(1.05) blur(0.0px);}
- canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;z-index:12}
- .overlay{position:fixed;inset:0;z-index:18;pointer-events:none;}
- .ui{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;text-align:center;z-index:30}
- button#start{background:linear-gradient(180deg,#fffbf2,#fff2d6);color:#111;border-radius:999px;padding:12px 20px;font-size:17px;border:none;box-shadow:0 10px 30px rgba(20,10,0,0.45)}
- .hint{font-size:13px;color:#e8e8e8;margin-top:8px;opacity:0.95}
- .msg{position:fixed;left:50%;transform:translateX(-50%);top:18%;z-index:40;font-size:28px;letter-spacing:0.2px;opacity:0;transition:opacity 800ms ease, transform 700ms cubic-bezier(.2,.9,.2,1);}
- .msg.glow{color:var(--text-color);text-shadow:0 0 18px rgba(255,210,120,0.85), 0 0 36px rgba(255,150,50,0.45)}
- .flash{position:fixed;inset:0;background:radial-gradient(circle at center, rgba(255,240,200,0.06), rgba(255,200,120,0.02) 25%, rgba(0,0,0,0) 60%);pointer-events:none;mix-blend-mode:screen;z-index:20;opacity:0;transition:opacity 300ms ease;}
- #close{position:fixed;right:14px;top:14px;z-index:50;background:rgba(0,0,0,0.35);color:#fff;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06)}
- footer{position:fixed;left:12px;bottom:12px;color:#cfcfcf;font-size:12px;z-index:50}
- .sparkle-layer{position:fixed;inset:0;pointer-events:none;z-index:15;mix-blend-mode:screen;opacity:0}
+  :root{
+    --text:#ffffff;
+    --muted:#e8e8e8;
+    --primary1: rgba(255,245,210,0.98);
+    --primary2: rgba(255,180,70,0.85);
+    --bg:#060608;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Arial;color:var(--text);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  #app{position:relative;height:100vh;overflow:hidden}
+  video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);filter:brightness(0.58) contrast(1.06) saturate(1.05);z-index:1}
+  canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;z-index:20}
+  .overlay{position:fixed;inset:0;z-index:30;pointer-events:none}
+  .ui{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;text-align:center;z-index:40;pointer-events:auto}
+  button#start{background:linear-gradient(180deg,#fff7e8,#fff0d0);color:#111;border-radius:999px;padding:12px 18px;font-size:16px;border:none;box-shadow:0 12px 40px rgba(10,8,6,0.45)}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;opacity:0.95}
+  .msg{position:fixed;left:50%;transform:translateX(-50%) translateY(10px);bottom:100px;z-index:50;font-size:16px;padding:8px 14px;opacity:0;transition:opacity 700ms ease, transform 700ms cubic-bezier(.2,.9,.2,1);color:var(--text);text-align:center;border-radius:12px;backdrop-filter: blur(6px) saturate(1.1);pointer-events:none}
+  .msg.glow{background: linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.18));box-shadow:0 10px 40px rgba(0,0,0,0.5);text-shadow:0 0 18px rgba(255,220,130,0.55)}
+  .flash{position:fixed;inset:0;background:radial-gradient(circle at center, rgba(255,245,200,0.06), rgba(255,200,110,0.02) 25%, rgba(0,0,0,0) 60%);pointer-events:none;mix-blend-mode:screen;z-index:22;opacity:0;transition:opacity 300ms ease}
+  #close{position:fixed;right:14px;top:14px;z-index:60;background:rgba(0,0,0,0.35);color:#fff;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);display:none}
+  .sparkle-layer{position:fixed;inset:0;pointer-events:none;z-index:24;mix-blend-mode:screen;opacity:1}
+  /* subtle fade-in for start area */
+  .ui-enter{animation:uiFade 900ms ease both}
+  @keyframes uiFade{from{opacity:0;transform:translateX(-50%) translateY(6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  @media (min-width:900px){ .msg{font-size:18px; bottom:120px} button#start{font-size:18px;padding:14px 22px} }
+  /* accessibility: keep controls tappable */
+  #ui{z-index:100;pointer-events:auto}
 </style>
 </head>
 <body>
 <div id="app">
- <video id="cam" playsinline autoplay muted></video>
- <canvas id="fx"></canvas>
+  <video id="cam" playsinline autoplay muted></video>
+  <canvas id="fx"></canvas>
 
- <div class="overlay">
-   <div class="msg" id="msg">Dekha, roshni ho gayi har jagah ✨</div>
-   <div class="flash" id="flash"></div>
-   <div class="sparkle-layer" id="sparks"></div>
- </div>
+  <div class="overlay">
+    <div class="msg" id="msg">Dekha, roshni ho gayi har jagah ✨</div>
+    <div class="flash" id="flash"></div>
+    <div class="sparkle-layer" id="sparks"></div>
+  </div>
 
- <div class="ui" id="ui">
-   <button id="start">Tap when pointing to the sky</button>
-   <div class="hint">Point your camera at the sky, then tap. Best after sunset. Allow camera access.</div>
- </div>
+  <div class="ui" id="ui">
+    <button id="start">Tap when pointing to the sky</button>
+    <div class="hint">Best after sunset. Allow camera access and gently tilt your phone.</div>
+  </div>
 
- <button id="close" style="display:none">Close</button>
- <footer>— A small surprise</footer>
+  <button id="close">Close</button>
 </div>
 
+<!-- optional chime, keep in repo if you like -->
 <audio id="chime" src="chime.mp3" preload="auto"></audio>
 
 <script>
 (async function(){
- const video = document.getElementById('cam');
- const canvas = document.getElementById('fx');
- const ctx = canvas.getContext('2d', { alpha: true });
- const startBtn = document.getElementById('start');
- const msg = document.getElementById('msg');
- const closeBtn = document.getElementById('close');
- const flash = document.getElementById('flash');
- const sparksLayer = document.getElementById('sparks');
- const chime = document.getElementById('chime');
+  // elements
+  const video = document.getElementById('cam');
+  const canvas = document.getElementById('fx');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  const startBtn = document.getElementById('start');
+  const msg = document.getElementById('msg');
+  const closeBtn = document.getElementById('close');
+  const flash = document.getElementById('flash');
+  const sparksLayer = document.getElementById('sparks');
+  const chime = document.getElementById('chime');
 
- let particles = [];
- let tiny = [];
- let running=false;
- let w=innerWidth, h=innerHeight;
- function resize(){ w = canvas.width = innerWidth; h = canvas.height = innerHeight; }
- window.addEventListener('resize', resize);
- resize();
+  // canvas size
+  let w = canvas.width = innerWidth;
+  let h = canvas.height = innerHeight;
+  window.addEventListener('resize', ()=>{ w = canvas.width = innerWidth; h = canvas.height = innerHeight; });
 
- // get camera
- try {
-   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
-   video.srcObject = stream;
- } catch (e) {
-   alert('Camera access required. Please allow camera and reload.');
-   console.error(e);
-   return;
- }
+  // graceful camera
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
+    video.srcObject = stream;
+  } catch(e){
+    alert('Camera access required — please allow camera and reload.');
+    console.error(e);
+    return;
+  }
 
- // particle constructors
- function makeParticle(x,y){
-   return {
-     x:x + (Math.random()*200-100),
-     y:y + (Math.random()*80-200),
-     vx:(Math.random()*1.2-0.6),
-     vy:(Math.random()*-0.6-1.8),
-     life: 80 + Math.random()*140,
-     r: 3 + Math.random()*6,
-     glow: 0.9 + Math.random()*0.8,
-     alpha: 0.8 + Math.random()*0.3
-   };
- }
- function makeTiny(x,y){
-   return {
-     x:x + (Math.random()*300-150),
-     y:y + (Math.random()*200-300),
-     vx:(Math.random()*0.6-0.3),
-     vy:(Math.random()*-0.4-0.8),
-     life: 40 + Math.random()*60,
-     r: 1 + Math.random()*2,
-     glow: 0.6 + Math.random()*0.6
-   };
- }
+  // particle containers
+  let big = [], small = [], ambient = [];
+  let running = false;
 
- function spawn(x,y,count=30){
-   for(let i=0;i<count;i++) particles.push(makeParticle(x,y));
-   for(let i=0;i<count*2;i++) tiny.push(makeTiny(x,y));
- }
+  // create big particle
+  function makeBig(x,y){
+    return {
+      x: x + (Math.random()*120-60),
+      y: y + (Math.random()*80-40),
+      vx: (Math.random()*1.2-0.6),
+      vy: (Math.random()*-0.6-1.8),
+      life: 90 + Math.random()*160,
+      r: 3 + Math.random()*8,
+      glow: 0.9 + Math.random()*0.8,
+      alpha: 0.85 + Math.random()*0.25
+    };
+  }
+  function makeSmall(x,y){
+    return {
+      x: x + (Math.random()*220-110),
+      y: y + (Math.random()*140-70),
+      vx: (Math.random()*0.8-0.4),
+      vy: (Math.random()*-0.35-0.6),
+      life: 40 + Math.random()*90,
+      r: 0.8 + Math.random()*2.4,
+      glow: 0.5 + Math.random()*0.7
+    };
+  }
+  function makeAmbient(x,y){
+    return {
+      x: x + (Math.random()*300-150),
+      y: y + (Math.random()*220-110),
+      vx: (Math.random()*0.6-0.3),
+      vy: (Math.random()*-0.35-0.6),
+      life: 50 + Math.random()*90,
+      r: 1 + Math.random()*3,
+      glow: 0.3 + Math.random()*0.6
+    };
+  }
 
- // animation
- function step(){
-   ctx.clearRect(0,0,w,h);
-   // subtle overlay to keep trails after each frame
-   ctx.globalCompositeOperation = 'source-over';
-   ctx.fillStyle = 'rgba(0,0,0,0.08)';
-   ctx.fillRect(0,0,w,h);
+  // spawn bursts (center bias)
+  function spawnBurst(cx,cy,countBig=90,countSmall=140){
+    for(let i=0;i<countBig;i++) big.push(makeBig(cx,cy));
+    for(let i=0;i<countSmall;i++) small.push(makeSmall(cx,cy));
+  }
 
-   // large glowing particles (diyas)
-   for(let i=particles.length-1;i>=0;i--){
-     const p = particles[i];
-     p.x += p.vx;
-     p.y += p.vy;
-     p.vy += 0.006;
-     p.life--;
-     const g = ctx.createRadialGradient(p.x,p.y,p.r*0.2,p.x,p.y,p.r*12);
-     g.addColorStop(0, `rgba(255,245,200,${0.95*p.alpha})`);
-     g.addColorStop(0.25, `rgba(255,200,100,${0.75*p.alpha})`);
-     g.addColorStop(0.8, `rgba(255,120,50,${0.25*p.alpha})`);
-     g.addColorStop(1, `rgba(0,0,0,0)`);
-     ctx.globalCompositeOperation = 'lighter';
-     ctx.fillStyle = g;
-     ctx.beginPath();
-     ctx.arc(p.x,p.y,p.r*8,0,Math.PI*2);
-     ctx.fill();
-     ctx.globalCompositeOperation = 'source-over';
-     if(p.life<=0 || p.y < -80 || p.x < -80 || p.x > w+80) particles.splice(i,1);
-   }
+  // ambient continuous sparking (aesthetic)
+  function spawnAmbientAt(x,y,qty=6){
+    for(let i=0;i<qty;i++) ambient.push(makeAmbient(x,y));
+  }
 
-   // tiny sparkles
-   for(let i=tiny.length-1;i>=0;i--){
-     const p = tiny[i];
-     p.x += p.vx;
-     p.y += p.vy;
-     p.vy += 0.002;
-     p.life--;
-     ctx.globalAlpha = 0.9;
-     ctx.fillStyle = `rgba(255,230,160,${0.95*p.glow})`;
-     ctx.beginPath();
-     ctx.arc(p.x,p.y,p.r*3,0,Math.PI*2);
-     ctx.fill();
-     ctx.globalAlpha = 1;
-     if(p.life<=0) tiny.splice(i,1);
-   }
+  // orientation-based target (follows tilt)
+  let orientTarget = null;
+  function setTargetFromOrientation(alpha,beta,gamma){
+    // gamma: left/right tilt (~ -90..90), beta: front/back (~ -180..180)
+    // map to screen coords
+    const nx = (0.5 + (gamma || 0)/90 * 0.45) * w;
+    const ny = (0.45 + (beta || 0)/180 * 0.45) * h;
+    orientTarget = { x: nx, y: ny };
+  }
 
-   requestAnimationFrame(step);
- }
- step();
+  // deviceorientation (mobile)
+  if(window.DeviceOrientationEvent){
+    try {
+      window.addEventListener('deviceorientation', (ev)=>{
+        // some browsers deliver nulls — guard
+        const g = ev.gamma || 0;
+        const b = ev.beta || 0;
+        setTargetFromOrientation(ev.alpha, b, g);
+      }, true);
+    } catch(e){ /* ignore */ }
+  }
 
- // sparkle HTML layer for extra bloom/glow
- function showSparkleOverlay(){
-   sparksLayer.style.opacity = 1;
-   sparksLayer.innerHTML = '';
-   // create multiple DOM sparks for huge bloom (CSS + opacity handled by blend mode)
-   for(let i=0;i<22;i++){
-     const s = document.createElement('div');
-     const size = 40 + Math.random()*140;
-     s.style.position = 'absolute';
-     s.style.left = (Math.random()*100)+'%';
-     s.style.top = (Math.random()*65)+'%';
-     s.style.width = size+'px';
-     s.style.height = size+'px';
-     s.style.borderRadius = '50%';
-     s.style.background = 'radial-gradient(circle, rgba(255,240,200,0.9), rgba(255,180,80,0.35), rgba(255,120,40,0.05))';
-     s.style.filter = 'blur(18px)';
-     s.style.opacity = 0.0;
-     s.style.transform = 'translateY(30px) scale(0.8)';
-     s.style.transition = 'all 800ms cubic-bezier(.2,.9,.2,1)';
-     sparksLayer.appendChild(s);
-     setTimeout(()=>{ s.style.opacity = 1; s.style.transform = 'translateY(0px) scale(1)'; }, 60*i);
-   }
-   // gradually fade overlay out after a while
-   setTimeout(()=>{ sparksLayer.style.opacity = 0; sparksLayer.innerHTML=''; }, 6000);
- }
+  // animation loop
+  function step(){
+    // draw subtle overlay to keep trails gently
+    ctx.clearRect(0,0,w,h);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillRect(0,0,w,h);
 
- // start: spawn bursts & show message/flash
- startBtn.addEventListener('click', function(e){
-   if(running) return;
-   running = true;
-   // sound (user gesture allows autoplay)
-   try{ chime.currentTime = 0; chime.play().catch(()=>{}); }catch(err){}
-   // center spawn area higher to simulate sky
-   const cx = w/2;
-   const cy = h * 0.65;
-   spawn(cx, cy, 120); // big initial burst
-   // cinematic repeated bursts
-   let bursts=0;
-   const int = setInterval(()=>{
-     spawn(cx + (Math.random()*380-190), cy + (Math.random()*40-20), 48);
-     bursts++;
-     if(bursts>16){ clearInterval(int); finish(); }
-   },180);
-   msg.classList.add('glow');
-   msg.style.opacity = 1;
-   msg.style.transform = 'translateY(0) scale(1)';
-   flash.style.opacity = 0.14;
-   setTimeout(()=>{ flash.style.opacity = 0; }, 700);
-   showSparkleOverlay();
+    // draw big particles (glow)
+    for(let i=big.length-1;i>=0;i--){
+      const p = big[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.005;
+      p.life--;
+      const grad = ctx.createRadialGradient(p.x,p.y,p.r*0.2,p.x,p.y,p.r*12);
+      grad.addColorStop(0, `rgba(255,250,210,${0.98*p.alpha})`);
+      grad.addColorStop(0.25, `rgba(255,210,120,${0.75*p.alpha})`);
+      grad.addColorStop(0.65, `rgba(255,150,60,${0.28*p.alpha})`);
+      grad.addColorStop(1, `rgba(0,0,0,0)`);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r*9,0,Math.PI*2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      if(p.life<=0 || p.y < -120 || p.x < -120 || p.x > w + 120) big.splice(i,1);
+    }
 
-   function finish(){
-     // final huge burst
-     spawn(w/2, h*0.55, 220);
-     closeBtn.style.display='block';
-     document.getElementById('ui').style.display='none';
-   }
- });
+    // small sparkles
+    for(let i=small.length-1;i>=0;i--){
+      const p = small[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.002;
+      p.life--;
+      ctx.globalAlpha = 0.95 * (Math.min(1, p.life/60));
+      ctx.fillStyle = `rgba(255,235,190,${0.95*p.glow})`;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r*3,0,Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if(p.life<=0) small.splice(i,1);
+    }
 
- // also allow touch anywhere
- canvas.addEventListener('touchstart', (e)=>{
-   if(!running){
-     startBtn.click();
-   }
- });
+    // ambient sparks (smaller)
+    for(let i=ambient.length-1;i>=0;i--){
+      const p = ambient[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.0015;
+      p.life--;
+      const alpha = Math.max(0, Math.min(1, p.life/80));
+      ctx.fillStyle = `rgba(255,235,200,${0.75*alpha*p.glow})`;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r*2,0,Math.PI*2);
+      ctx.fill();
+      if(p.life<=0) ambient.splice(i,1);
+    }
 
- closeBtn.addEventListener('click', ()=>{
-   msg.style.opacity=0; msg.style.transform='translateY(-6px) scale(.98)';
-   document.getElementById('ui').style.display='none';
-   closeBtn.style.display='none';
-   running=false;
-   particles = []; tiny = [];
- });
+    requestAnimationFrame(step);
+  }
+  step();
+
+  // sparkle DOM overlay for soft bloom (complementary to canvas)
+  function softBloomPulse(){
+    sparksLayer.innerHTML = '';
+    const count = 18;
+    for(let i=0;i<count;i++){
+      const d = document.createElement('div');
+      const size = 40 + Math.random()*120;
+      d.style.position = 'absolute';
+      d.style.left = (Math.random()*100)+'%';
+      d.style.top = (Math.random()*80)+'%';
+      d.style.width = size+'px';
+      d.style.height = size+'px';
+      d.style.borderRadius = '50%';
+      d.style.background = 'radial-gradient(circle, rgba(255,245,200,0.95), rgba(255,200,80,0.32), rgba(255,120,50,0.05))';
+      d.style.filter = 'blur(18px)';
+      d.style.opacity = 0;
+      d.style.transform = 'translateY(20px) scale(0.86)';
+      d.style.transition = 'all 700ms cubic-bezier(.2,.9,.2,1)';
+      sparksLayer.appendChild(d);
+      setTimeout(()=>{ d.style.opacity = 1; d.style.transform = 'translateY(0) scale(1)'; }, 30*i);
+      setTimeout(()=>{ d.style.opacity = 0; }, 4200 + Math.random()*1200);
+    }
+  }
+
+  // UX: message delay 3s, smaller bottom text
+  msg.style.fontSize = '15px';
+  msg.style.padding = '6px 12px';
+  msg.style.bottom = '48px';
+  msg.classList.add('msg','glow');
+  // show UI nicely
+  document.getElementById('ui').classList.add('ui-enter');
+
+  // on start tap
+  startBtn.addEventListener('click', ()=>{
+    if(running) return;
+    running = true;
+    // chime (optional)
+    try{ chime.currentTime = 0; chime.play().catch(()=>{}); }catch(e){}
+    // show message after 3s
+    setTimeout(()=>{
+      msg.style.opacity = 1;
+      msg.style.transform = 'translateX(-50%) translateY(0)';
+    }, 3000);
+    // center spawn
+    const cx = w/2;
+    const cy = h * 0.6;
+    spawnBurst(cx, cy, 110, 150);
+
+    // repeated cinematic bursts but softer
+    let bursts = 0;
+    const interval = setInterval(()=>{
+      // if device orientation available, prefer the target
+      let tx = cx + (Math.random()*240-120);
+      let ty = cy + (Math.random()*80-40);
+      if(orientTarget){
+        tx = orientTarget.x + (Math.random()*120-60);
+        ty = orientTarget.y + (Math.random()*80-40);
+      }
+      spawnBurst(tx, ty, 44, 80);
+      spawnAmbientAt(tx, ty, 8);
+      softBloomPulse();
+      bursts++;
+      if(bursts > 12){ clearInterval(interval); finalRave(); }
+    }, 220);
+
+    function finalRave(){
+      // final wide burst
+      spawnBurst(w*0.5, h*0.5, 200, 260);
+      spawnAmbientAt(w*0.5, h*0.5, 30);
+      flash.style.opacity = 0.14;
+      setTimeout(()=>{ flash.style.opacity = 0; }, 700);
+      closeBtn.style.display = 'block';
+      document.getElementById('ui').style.display = 'none';
+    }
+  });
+
+  // also allow tap on canvas to start
+  canvas.addEventListener('touchstart', (e)=>{ if(!running) startBtn.click(); });
+
+  // repeat ambient spawning near orientation target periodically
+  setInterval(()=>{
+    if(orientTarget){
+      // spawn small cluster near the target
+      for(let i=0;i<4;i++){
+        spawnAmbientAt( orientTarget.x + (Math.random()*80-40), orientTarget.y + (Math.random()*60-30), 2 );
+      }
+    } else {
+      // ambient random speckles across screen
+      spawnAmbientAt(Math.random()*w, Math.random()*h, 3);
+    }
+  }, 600);
+
+  // close handler
+  closeBtn.addEventListener('click', ()=>{
+    msg.style.opacity = 0; msg.style.transform = 'translateX(-50%) translateY(8px)';
+    running = false;
+    big = []; small = []; ambient = [];
+    closeBtn.style.display = 'none';
+    document.getElementById('ui').style.display = 'block';
+  });
+
+  // optional: if no orientation available, show hint to tilt for full effect
+  setTimeout(()=>{
+    if(!orientTarget){
+      // gentle hint (non-intrusive)
+      // (we won't prompt aggressively — keep the UI simple)
+    }
+  }, 1200);
 
 })();
 </script>
