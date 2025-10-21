@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Dekha — Roshni (gentle)</title>
+<title>Dekha — Roshni (final)</title>
 <style>
-  :root{ --text:#fff; --muted:#e8e8e8; --bg:#040307; }
+  :root{ --text:#fff; --muted:#dcdcdc; --bg:#020204; }
   html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Arial;color:var(--text);-webkit-font-smoothing:antialiased}
   #app{position:relative;height:100vh;overflow:hidden}
   video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);
-    /* darker backdrop so lights pop */
-    filter:brightness(0.54) contrast(1.06) saturate(1.02); z-index:1}
+    filter:brightness(0.52) contrast(1.06) saturate(1.02);z-index:1}
   canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;z-index:20}
   .overlay{position:fixed;inset:0;z-index:30;pointer-events:none}
-  .ui{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;text-align:center;z-index:1000;pointer-events:auto}
-  button#start{background:linear-gradient(180deg,#fff7e8,#fff0d0);color:#111;border-radius:999px;padding:12px 18px;font-size:16px;border:none;box-shadow:0 10px 30px rgba(10,8,6,0.35)}
+  .ui{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;text-align:center;z-index:1000;pointer-events:auto;transition:opacity 300ms ease, transform 300ms ease}
+  #start{background:linear-gradient(180deg,#fff7e8,#fff0d0);color:#111;border-radius:999px;padding:12px 18px;font-size:16px;border:none;box-shadow:0 10px 30px rgba(10,8,6,0.35)}
   .hint{font-size:12px;color:var(--muted);margin-top:8px;opacity:0.95}
   .msg{position:fixed;left:50%;transform:translateX(-50%) translateY(10px);bottom:60px;z-index:50;font-size:14px;padding:6px 12px;opacity:0;
-    transition:opacity 700ms ease, transform 700ms cubic-bezier(.2,.9,.2,1);color:var(--text);text-align:center;border-radius:10px;backdrop-filter: blur(4px);pointer-events:none}
+    transition:opacity 600ms ease, transform 600ms cubic-bezier(.2,.9,.2,1);color:var(--text);text-align:center;border-radius:10px;backdrop-filter: blur(4px);pointer-events:none}
   .msg.glow{background: rgba(0,0,0,0.22);box-shadow:0 8px 26px rgba(0,0,0,0.45)}
   .sparkle-layer{position:fixed;inset:0;pointer-events:none;z-index:24;mix-blend-mode:screen}
-  @media (min-width:900px){ .msg{font-size:16px; bottom:84px} button#start{font-size:18px;padding:14px 22px} }
+  .hidden { opacity: 0; transform: translateY(10px) scale(.98); pointer-events: none; }
+  @media (min-width:900px){ .msg{font-size:16px; bottom:84px} #start{font-size:18px;padding:14px 22px} }
 </style>
 </head>
 <body>
@@ -29,40 +29,49 @@
   <canvas id="fx"></canvas>
 
   <div class="overlay">
-    <div class="msg" id="msg">Dekha, roshni ho gayi har jagah ✨</div>
+    <div class="msg" id="msg" aria-hidden="true">Dekha, roshni ho gayi har jagah ✨</div>
     <div class="sparkle-layer" id="sparks"></div>
   </div>
 
-  <div class="ui" id="ui">
+  <div class="ui" id="ui" role="button" aria-label="Start overlay">
     <button id="start">Tap anywhere to begin</button>
-    <div class="hint">Best after sunset. Allow camera access and gently tilt your phone.</div>
+    <div class="hint" id="hint">Best after sunset. Allow camera access and gently tilt your phone.</div>
   </div>
 </div>
 
 <script>
 (async function(){
+  // elements
   const video = document.getElementById('cam');
   const canvas = document.getElementById('fx');
   const ctx = canvas.getContext('2d', { alpha: true });
   const startBtn = document.getElementById('start');
+  const ui = document.getElementById('ui');
+  const hint = document.getElementById('hint');
   const msg = document.getElementById('msg');
   const sparksLayer = document.getElementById('sparks');
 
-  // size
+  // canvas size
   let w = canvas.width = innerWidth;
   let h = canvas.height = innerHeight;
-  addEventListener('resize', ()=>{ w = canvas.width = innerWidth; h = canvas.height = innerHeight; });
+  window.addEventListener('resize', ()=>{ w = canvas.width = innerWidth; h = canvas.height = innerHeight; });
 
-  // camera
+  // request camera
+  let cameraGranted = false;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
     video.srcObject = stream;
+    cameraGranted = true;
+    // hide hint when camera is live
+    hint.classList.add('hidden');
   } catch(e){
+    // camera denied — keep hint visible so user knows to allow
+    console.error('camera error', e);
     alert('Camera access required — please allow camera and reload.');
-    return;
+    // do not abort (we want UI available to instruct)
   }
 
-  // specks only (brighter)
+  // particle arrays
   let specks = [], running = false;
 
   function makeSpeck(x,y){
@@ -72,10 +81,10 @@
       vx: (Math.random()*0.6-0.3),
       vy: (Math.random()*-0.12-0.05),
       life: 160 + Math.random()*240,
-      r: 0.8 + Math.random()*1.8,
+      r: 0.9 + Math.random()*1.6,
       tw: Math.random()*Math.PI*2,
       hueShift: Math.random()*14 - 7,
-      alpha: 0.75 + Math.random()*0.35   // brighter
+      alpha: 0.78 + Math.random()*0.32
     };
   }
 
@@ -84,7 +93,7 @@
     if(specks.length>1000) specks.splice(0, specks.length-800);
   }
 
-  // orientation target
+  // orientation tracking
   let orientTarget = null, lastOrient = { x:w/2, y:h/2 };
   function setTargetFromOrientation(a,b,g){
     const nx = (0.5 + (g||0)/90 * 0.45) * w;
@@ -92,66 +101,65 @@
     orientTarget = { x:nx, y:ny };
   }
   if(window.DeviceOrientationEvent){
-    addEventListener('deviceorientation', (ev)=>{
+    window.addEventListener('deviceorientation', (ev)=>{
       setTargetFromOrientation(ev.alpha, ev.beta||0, ev.gamma||0);
     }, true);
   }
 
-  // draw loop (brighter glow radius)
+  // draw loop (brighter, gentle)
   function step(){
     ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillRect(0,0,w,h);
 
     for(let i=specks.length-1;i>=0;i--){
       const p = specks[i];
       p.tw += 0.006 + Math.random()*0.006;
-      p.x += p.vx + Math.sin(p.tw)*0.14;
-      p.y += p.vy + Math.cos(p.tw)*0.06;
+      p.x += p.vx + Math.sin(p.tw)*0.12;
+      p.y += p.vy + Math.cos(p.tw)*0.05;
       p.vy += 0.0002;
       p.life--;
       const lifeFactor = Math.max(0, Math.min(1, p.life / 280));
-
-      // bigger glow + higher alpha
       const glow = 12 + p.r*8;
       const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,glow);
-      const warm = `rgba(255,${230 - (p.hueShift*1.2|0)},${170 - (p.hueShift|0)},${0.85 * p.alpha * lifeFactor})`;
+      const warm = `rgba(255,${230 - (p.hueShift*1.2|0)},${170 - (p.hueShift|0)},${0.84 * p.alpha * lifeFactor})`;
       g.addColorStop(0, warm);
-      g.addColorStop(0.35, `rgba(255,200,120,${0.40 * lifeFactor * p.alpha})`);
+      g.addColorStop(0.35, `rgba(255,200,120,${0.38 * lifeFactor * p.alpha})`);
       g.addColorStop(1, 'rgba(0,0,0,0)');
 
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(p.x,p.y,Math.max(1.2, p.r*4.6),0,Math.PI*2);
+      ctx.arc(p.x,p.y,Math.max(1.2, p.r*4.4),0,Math.PI*2);
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
 
-      if(p.life<=0 || p.x<-80 || p.x>w+80 || p.y<-80) specks.splice(i,1);
+      if(p.life<=0 || p.x < -80 || p.x > w+80 || p.y < -80) specks.splice(i,1);
     }
     requestAnimationFrame(step);
   }
   step();
 
-  // subtle DOM sparkles (unchanged)
+  // gentle DOM sparks (keeps ambience)
   function renderDOMSparks(){
     sparksLayer.innerHTML = '';
-    const n = 34;
+    const n = 28;
     for(let i=0;i<n;i++){
       const el = document.createElement('div');
-      const s = 8 + Math.random()*14;
+      const s = 8 + Math.random()*12;
       el.style.position='absolute';
       el.style.left=(Math.random()*100)+'%';
       el.style.top=(Math.random()*85)+'%';
       el.style.width=s+'px'; el.style.height=s+'px';
       el.style.borderRadius='50%';
-      el.style.background='radial-gradient(circle, rgba(255,245,215,0.98), rgba(255,210,130,0.28))';
-      el.style.filter='blur(6px)'; el.style.opacity=(0.12+Math.random()*0.32)+'';
+      el.style.background='radial-gradient(circle, rgba(255,245,215,0.95), rgba(255,210,130,0.28))';
+      el.style.filter='blur(6px)'; el.style.opacity=(0.12+Math.random()*0.28)+'';
       sparksLayer.appendChild(el);
     }
   }
-  renderDOMSparks(); setInterval(renderDOMSparks, 5400);
+  renderDOMSparks(); setInterval(renderDOMSparks, 5200);
 
-  // spawn following orientation
+  // spawn around orientation target or wander
   setInterval(()=>{
     let sx = w*0.5 + (Math.random()*120-60), sy = h*0.5 + (Math.random()*80-40);
     if(orientTarget){
@@ -160,25 +168,37 @@
       sx = lastOrient.x + (Math.random()*80-40);
       sy = lastOrient.y + (Math.random()*60-30);
     }
-    spawnSpecksAt(sx, sy, 10 + Math.floor(Math.random()*6));
-  }, 340);
+    spawnSpecksAt(sx, sy, 8 + Math.floor(Math.random()*6));
+  }, 360);
 
-  // ---- START: make sure any tap works ----
+  // start function: hides UI, shows message after 4s, spawns gentle clouds
   function begin(){
     if(running) return;
     running = true;
-    // 4s message delay
-    setTimeout(()=>{ msg.classList.add('glow'); msg.style.opacity=1; msg.style.transform='translateX(-50%) translateY(0)'; }, 4000);
-    // gentle initial fill
-    for(let i=0;i<50;i++){ spawnSpecksAt(Math.random()*w, Math.random()*h, 5); }
-    const ramp = setInterval(()=>{ spawnSpecksAt(Math.random()*w, Math.random()*h, 7); }, 700);
+    // hide UI smoothly
+    ui.classList.add('hidden');
+    // ensure hint hidden
+    hint.classList.add('hidden');
+
+    // schedule msg after 4 seconds
+    setTimeout(()=>{ msg.classList.add('glow'); msg.style.opacity = 1; msg.style.transform='translateX(-50%) translateY(0)'; msg.setAttribute('aria-hidden','false'); }, 4000);
+
+    // initial gentle spray
+    for(let i=0;i<40;i++){ spawnSpecksAt(Math.random()*w, Math.random()*h, 4); }
+    const ramp = setInterval(()=>{ spawnSpecksAt(Math.random()*w, Math.random()*h, 6); }, 700);
     setTimeout(()=>clearInterval(ramp), 16000);
   }
+
+  // wire taps — button, canvas, body click/touch
   startBtn.addEventListener('click', begin, {passive:true});
   canvas.addEventListener('touchstart', begin, {passive:true});
   document.body.addEventListener('touchstart', begin, {passive:true});
   document.body.addEventListener('click', begin, {passive:true});
-  // ----------------------------------------
+
+  // safety: if camera was not granted earlier, show hint more prominently until user gives permission
+  if(!cameraGranted){
+    hint.classList.remove('hidden');
+  }
 })();
 </script>
 </body>
