@@ -3,34 +3,42 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Dekha — Starry Roshni</title>
+<title>Dekha — The Sky Lit Up</title>
 <style>
   :root{
-    --bg:#02030a;
-    --text:#eaf7ff;
-    --hint:#c9d6e8;
+    --bg:#030311;
+    --text:#f0f8ff;
+    --hint:#c7d6e8;
   }
   html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Arial;color:var(--text);-webkit-font-smoothing:antialiased}
   #app{position:relative;height:100vh;overflow:hidden}
+  /* camera feed */
   video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);
-    filter:brightness(0.46) contrast(1.02) saturate(0.98);z-index:1}
-  canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;z-index:20}
-  .overlay{position:fixed;inset:0;z-index:30;pointer-events:none}
+    filter:brightness(0.44) contrast(1.02) saturate(0.98);z-index:1;transition:filter 800ms ease;}
+  /* canvas for particles */
+  canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;z-index:22}
+  /* bloom overlay that grows to brighten whole frame */
+  .bloom{position:fixed;inset:0;z-index:24;pointer-events:none;mix-blend-mode:screen;opacity:0;transition:opacity 800ms ease;}
+  .bloom .glow{position:absolute;inset:-20%;background:radial-gradient(circle at 50% 30%, rgba(255,240,210,0.18), rgba(255,200,120,0.08) 18%, rgba(0,0,0,0) 48%);filter:blur(28px);opacity:0.0;transform:scale(0.92);transition:all 900ms cubic-bezier(.2,.9,.2,1)}
+  .bloom.on{opacity:1}
+  .bloom.on .glow{opacity:1;transform:scale(1.06)}
+  .overlay{position:fixed;inset:0;z-index:26;pointer-events:none}
   .ui{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;text-align:center;z-index:1000;pointer-events:auto;transition:opacity 260ms ease, transform 260ms ease}
-  #start{background:linear-gradient(180deg,#f8fbff,#eaf6ff);color:#071026;border-radius:999px;padding:12px 18px;font-size:16px;border:none;box-shadow:0 8px 26px rgba(2,6,20,0.45)}
+  #start{background:linear-gradient(180deg,#f8fbff,#eff7ff);color:#071026;border-radius:999px;padding:12px 18px;font-size:16px;border:none;box-shadow:0 8px 26px rgba(2,6,20,0.45)}
   .hint{font-size:12px;color:var(--hint);margin-top:8px;opacity:0.95}
-  .msg{position:fixed;left:50%;transform:translateX(-50%) translateY(10px);bottom:60px;z-index:50;font-size:14px;padding:6px 12px;opacity:0;
-    transition:opacity 600ms ease, transform 600ms cubic-bezier(.2,.9,.2,1);color:var(--text);text-align:center;border-radius:10px;backdrop-filter: blur(4px);pointer-events:none}
-  .msg.glow{background: rgba(10,14,26,0.34);box-shadow:0 10px 36px rgba(3,8,20,0.6)}
+  .msg{position:fixed;left:50%;transform:translateX(-50%) translateY(10px);bottom:60px;z-index:40;font-size:14px;padding:8px 14px;opacity:0;
+    transition:opacity 500ms ease, transform 500ms cubic-bezier(.2,.9,.2,1);color:var(--text);text-align:center;border-radius:12px;backdrop-filter: blur(6px);pointer-events:none}
+  .msg.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .hidden { opacity: 0; transform: translateY(10px) scale(.98); pointer-events: none; }
-  .sparkle-layer{position:fixed;inset:0;pointer-events:none;z-index:24;mix-blend-mode:screen}
-  @media (min-width:900px){ .msg{font-size:16px; bottom:84px} #start{font-size:18px;padding:14px 22px} }
+  .sparkle-layer{position:fixed;inset:0;pointer-events:none;z-index:23;mix-blend-mode:screen}
 </style>
 </head>
 <body>
 <div id="app">
   <video id="cam" playsinline autoplay muted></video>
   <canvas id="fx"></canvas>
+
+  <div class="bloom" id="bloom"><div class="glow"></div></div>
 
   <div class="overlay">
     <div class="msg" id="msg" aria-hidden="true">Dekha, roshni ho gayi har jagah ✨</div>
@@ -39,13 +47,19 @@
 
   <div class="ui" id="ui" role="button" aria-label="Start overlay">
     <button id="start">Tap anywhere to begin</button>
-    <div class="hint" id="hint">Best after sunset. Allow camera access and gently tilt your phone.</div>
+    <div class="hint" id="hint">Open this outdoors at night, point at the sky and tap.</div>
   </div>
 </div>
 
+<!-- tiny chime: short pleasant bell (base64 small) -->
+<audio id="chime">
+  <source src="data:audio/mp3;base64,//uQZAAAAAAAAAAAAAAAAAAAA..." type="audio/mp3">
+  <!-- note: replace the base64 with your own chime if desired -->
+</audio>
+
 <script>
+/* ---------- core behaviour: star + warm dust + bloom brighten ---------- */
 (async function(){
-  // elements
   const video = document.getElementById('cam');
   const canvas = document.getElementById('fx');
   const ctx = canvas.getContext('2d', { alpha: true });
@@ -53,182 +67,209 @@
   const ui = document.getElementById('ui');
   const hint = document.getElementById('hint');
   const msg = document.getElementById('msg');
-  const sparksLayer = document.getElementById('sparks');
+  const bloom = document.getElementById('bloom');
+  const chime = document.getElementById('chime');
 
   // size
   let w = canvas.width = innerWidth;
   let h = canvas.height = innerHeight;
   addEventListener('resize', ()=>{ w = canvas.width = innerWidth; h = canvas.height = innerHeight; });
 
-  // get camera
-  let cameraGranted = false;
+  // camera
+  let cameraOK = false;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
-    video.srcObject = stream;
-    cameraGranted = true;
+    const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
+    video.srcObject = s;
+    cameraOK = true;
     hint.classList.add('hidden');
   } catch(e){
-    console.error(e);
-    // camera may be blocked — keep UI visible so user knows to allow permission
+    console.warn('camera denied', e);
   }
 
-  // speck data: starry cooler palette
-  let stars = [], running = false;
+  // particle arrays (3 layers)
+  let cool = [], warm = [], accent = [];
+  let running = false;
 
-  function makeStar(x,y){
-    return {
-      x, y,
-      vx: (Math.random()*0.18-0.09),
-      vy: (Math.random()*-0.06-0.02), // gentle upward drift
-      life: 200 + Math.random()*280,
-      r: 0.6 + Math.random()*1.4,
-      tw: Math.random()*Math.PI*2,
-      baseAlpha: 0.5 + Math.random()*0.45,
-      hueShift: Math.random()*20 - 10, // use to slightly tint blue
-      twinkleSpeed: 0.008 + Math.random()*0.018
-    };
+  // helpers: create star-like objects for each layer
+  function makeCool(x,y){
+    return { x, y, vx:(Math.random()*0.16-0.08), vy:(Math.random()*-0.05-0.01), life:200+Math.random()*320, r:0.6+Math.random()*1.6, tw:Math.random()*6.28, a:0.45+Math.random()*0.45 };
+  }
+  function makeWarm(x,y){
+    return { x, y, vx:(Math.random()*0.12-0.06), vy:(Math.random()*-0.04-0.01), life:140+Math.random()*260, r:1+Math.random()*2.2, tw:Math.random()*6.28, a:0.28+Math.random()*0.48 };
+  }
+  function makeAccent(x,y){
+    return { x, y, vx:(Math.random()*0.18-0.09), vy:(Math.random()*-0.06-0.02), life:80+Math.random()*160, r:0.8+Math.random()*1.6, tw:Math.random()*6.28, a:0.6+Math.random()*0.4 };
   }
 
-  function spawnStarsInArea(x1,x2,y1,y2,qty=6){
+  // spawn across wide top area with spacing (no centre-bunching)
+  function spawnWideLayer(layerFn, qty){
+    const topLimit = Math.max(60, h * 0.68); // bias to upper ~68%
     for(let i=0;i<qty;i++){
-      const x = x1 + Math.random()*(x2-x1);
-      const y = y1 + Math.random()*(y2-y1);
-      stars.push(makeStar(x,y));
+      const x = 20 + Math.random()*(w-40);
+      const y = 8 + Math.random()*topLimit;
+      const obj = layerFn(x,y);
+      if(layerFn === makeCool) cool.push(obj);
+      else if(layerFn === makeWarm) warm.push(obj);
+      else accent.push(obj);
     }
-    if(stars.length > 1200) stars.splice(0, stars.length - 900);
+    // caps
+    if(cool.length>900) cool.splice(0,cool.length-700);
+    if(warm.length>600) warm.splice(0,warm.length-480);
+    if(accent.length>180) accent.splice(0,accent.length-140);
   }
 
-  // wide initial scatter (top-heavy)
-  function scatterWide(){
-    // spawn across width, bias top 70%
-    for(let i=0;i<180;i++){
-      const x = Math.random()*w;
-      const y = Math.random() < 0.75 ? Math.random()* (h*0.65) : (h*0.65 + Math.random()*h*0.35);
-      stars.push(makeStar(x,y));
-    }
+  // wide soft scatter quickly
+  function scatterAll(){
+    spawnWideLayer(makeCool, 140);
+    spawnWideLayer(makeWarm, 70);
+    spawnWideLayer(makeAccent, 18);
   }
 
-  // device orientation target
-  let orientTarget = null, lastOrient = { x:w/2, y:h*0.35 };
-  function setTargetFromOrientation(a,b,g){
-    const nx = (0.5 + (g||0)/90 * 0.45) * w;
-    const ny = (0.25 + (b||0)/180 * 0.45) * h;
-    orientTarget = { x:nx, y:ny };
-  }
-  if(window.DeviceOrientationEvent){
-    window.addEventListener('deviceorientation', (ev)=>{ setTargetFromOrientation(ev.alpha, ev.beta||0, ev.gamma||0); }, true);
-  }
-
-  // draw loop (starry cooler tones)
+  // draw loop: gentle upward motion, twinkle, mixed colors
   function step(){
     ctx.clearRect(0,0,w,h);
-    // gentle dark overlay to retain subtle trails
+    // faint overlay to leave soft trails
     ctx.fillStyle = 'rgba(0,0,0,0.04)'; ctx.fillRect(0,0,w,h);
 
-    for(let i=stars.length-1;i>=0;i--){
-      const s = stars[i];
-      s.tw += s.twinkleSpeed;
-      // gentle noise motion
+    // draw cool stars (silver/blue)
+    for(let i=cool.length-1;i>=0;i--){
+      const s = cool[i];
+      s.tw += 0.007 + Math.random()*0.01;
       s.x += s.vx + Math.sin(s.tw)*0.06;
       s.y += s.vy + Math.cos(s.tw)*0.02;
       s.life--;
-      // twinkle factor oscillates
-      const t = 0.5 + 0.5*Math.sin(s.tw*2.1);
-      const lifeFactor = Math.max(0, Math.min(1, s.life / 420));
-      const alpha = Math.min(1, s.baseAlpha * (0.6 + 0.6*t) * lifeFactor);
-
-      // star color: cool white core, pale blue halo
-      const core = `rgba(${230 - (s.hueShift|0)}, ${240 - (s.hueShift|0)}, 255, ${alpha})`;
-      const halo = `rgba(190,210,255,${Math.max(0.18, 0.12 * lifeFactor * (0.9 + t))})`;
-
-      const glow = 10 + s.r*8;
+      const t = 0.5 + 0.5*Math.sin(s.tw*1.7);
+      const lf = Math.max(0, Math.min(1, s.life/420));
+      const alpha = Math.min(1, s.a * (0.6 + 0.6*t) * lf);
+      const core = `rgba(${230},${240},${255},${alpha})`;
+      const halo = `rgba(180,200,255,${0.16 * lf})`;
+      const glow = 10 + s.r*7;
       const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,glow);
       g.addColorStop(0, core);
       g.addColorStop(0.35, halo);
       g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle=g;
+      ctx.beginPath(); ctx.arc(s.x,s.y, Math.max(1.2, s.r*4.4),0,Math.PI*2); ctx.fill();
+      ctx.globalCompositeOperation='source-over';
+      if(s.life<=0 || s.x<-80 || s.x>w+80 || s.y<-120) cool.splice(i,1);
+    }
 
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(s.x,s.y, Math.max(1.2, s.r*4.6), 0, Math.PI*2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
+    // draw warm dust (golden, larger, subtler)
+    for(let i=warm.length-1;i>=0;i--){
+      const wv = warm[i];
+      wv.tw += 0.005 + Math.random()*0.009;
+      wv.x += wv.vx + Math.sin(wv.tw)*0.04;
+      wv.y += wv.vy + Math.cos(wv.tw)*0.015;
+      wv.life--;
+      const t = 0.5 + 0.5*Math.sin(wv.tw*1.5);
+      const lf = Math.max(0, Math.min(1, wv.life/360));
+      const alpha = Math.min(1, wv.a * (0.5 + 0.7*t) * lf);
+      const core = `rgba(255,245,210,${alpha})`;
+      const halo = `rgba(255,200,120,${0.12 * lf})`;
+      const glow = 12 + wv.r*8;
+      const g2 = ctx.createRadialGradient(wv.x,wv.y,0,wv.x,wv.y,glow);
+      g2.addColorStop(0, core);
+      g2.addColorStop(0.35, halo);
+      g2.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle=g2;
+      ctx.beginPath(); ctx.arc(wv.x,wv.y, Math.max(1.6, wv.r*5.2),0,Math.PI*2); ctx.fill();
+      ctx.globalCompositeOperation='source-over';
+      if(wv.life<=0 || wv.x<-120 || wv.x>w+120 || wv.y<-160) warm.splice(i,1);
+    }
 
-      if(s.life <= 0 || s.x < -80 || s.x > w+80 || s.y < -120) stars.splice(i,1);
+    // accent tiny lavenders (rare twinkles)
+    for(let i=accent.length-1;i>=0;i--){
+      const a = accent[i];
+      a.tw += 0.01 + Math.random()*0.02;
+      a.x += a.vx + Math.sin(a.tw)*0.06;
+      a.y += a.vy + Math.cos(a.tw)*0.03;
+      a.life--;
+      const t = 0.5 + 0.5*Math.sin(a.tw*2.8);
+      const lf = Math.max(0, Math.min(1, a.life / 220));
+      const alpha = Math.min(1, a.a * (0.6 + 0.8*t) * lf);
+      const core = `rgba(240,190,255,${alpha})`;
+      const halo = `rgba(220,180,255,${0.14 * lf})`;
+      const glow = 8 + a.r*6;
+      const g3 = ctx.createRadialGradient(a.x,a.y,0,a.x,a.y,glow);
+      g3.addColorStop(0, core);
+      g3.addColorStop(0.3, halo);
+      g3.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle=g3;
+      ctx.beginPath(); ctx.arc(a.x,a.y, Math.max(1.0, a.r*3.8),0,Math.PI*2); ctx.fill();
+      ctx.globalCompositeOperation='source-over';
+      if(a.life<=0 || a.x<-80 || a.x>w+80 || a.y<-120) accent.splice(i,1);
     }
 
     requestAnimationFrame(step);
   }
   step();
 
-  // subtle DOM sparkles (complementary tiny stars)
-  function renderDOMSparks(){
-    sparksLayer.innerHTML = '';
-    const n = 26;
-    for(let i=0;i<n;i++){
-      const el = document.createElement('div');
-      const s = 4 + Math.random()*10;
-      el.style.position='absolute';
-      el.style.left=(Math.random()*100) + '%';
-      el.style.top=(Math.random()*75) + '%';
-      el.style.width=s+'px'; el.style.height=s+'px';
-      el.style.borderRadius='50%';
-      el.style.background='radial-gradient(circle, rgba(245,250,255,0.95), rgba(200,220,255,0.18))';
-      el.style.filter='blur(4px)'; el.style.opacity=(0.06 + Math.random()*0.28)+'';
-      sparksLayer.appendChild(el);
-    }
+  // orientation-based spawn bias
+  let orientTarget = null, lastOrient = { x:w/2, y:h*0.32 };
+  function setTargetFromOrientation(a,b,g){
+    const nx = (0.5 + (g||0)/90 * 0.5) * w;
+    const ny = (0.2 + (b||0)/180 * 0.55) * h;
+    orientTarget = { x:nx, y:ny };
   }
-  renderDOMSparks(); setInterval(renderDOMSparks, 4800);
+  if(window.DeviceOrientationEvent){
+    window.addEventListener('deviceorientation', (ev)=>{ setTargetFromOrientation(ev.alpha, ev.beta||0, ev.gamma||0); }, true);
+  }
 
-  // orientation-follow spawn (gentle) and random spread
+  // periodic spawns across wide top + orient-biased clusters
   setInterval(()=>{
-    // prefer orient target if available
-    let sx, sy;
     if(orientTarget){
-      lastOrient.x += (orientTarget.x - lastOrient.x) * 0.18;
-      lastOrient.y += (orientTarget.y - lastOrient.y) * 0.18;
-      // spawn near that area with spread
-      sx = lastOrient.x + (Math.random()*240-120);
-      sy = lastOrient.y + (Math.random()*120-60);
-      spawnStarsInArea(Math.max(40, sx-120), Math.min(w-40, sx+120), Math.max(20, sy-80), Math.min(h-40, sy+80), 6 + Math.floor(Math.random()*6));
+      lastOrient.x += (orientTarget.x - lastOrient.x) * 0.16;
+      lastOrient.y += (orientTarget.y - lastOrient.y) * 0.16;
+      spawnWideLayerAt(lastOrient.x-180, lastOrient.x+180, Math.max(20,lastOrient.y-90), Math.min(h-40, lastOrient.y+90), 14);
     } else {
-      // spawn across wide top area with good spacing
-      const x1 = 20, x2 = w-20;
-      const y1 = 20, y2 = Math.max(60, h*0.65); // bias upper region
-      spawnStarsInArea(x1, x2, y1, y2, 12 + Math.floor(Math.random()*10));
+      // wide distributed spawn across upper 70%
+      spawnWideLayerAt(20, w-20, 20, Math.max(80, h*0.7), 28);
     }
-    // occasional sea of spaced stars
-    if(Math.random() < 0.06) spawnStarsInArea(20, w-20, 20, Math.max(60, h*0.6), 40 + Math.floor(Math.random()*30));
-  }, 420);
+    // occasional warm cloud
+    if(Math.random()<0.08) spawnWideLayerAt(40, w-40, 20, Math.max(120, h*0.6), 36);
+  }, 520);
 
-  // convenience spawn method using area coordinates
-  function spawnStarsInArea(x1, x2, y1, y2, qty=8){
+  function spawnWideLayerAt(x1,x2,y1,y2, qty){
     for(let i=0;i<qty;i++){
       const x = x1 + Math.random()*(x2-x1);
       const y = y1 + Math.random()*(y2-y1);
-      stars.push(makeStar(x,y));
+      // mix probabilities between layers
+      const r = Math.random();
+      if(r < 0.62) cool.push(makeCool(x,y));
+      else if(r < 0.88) warm.push(makeWarm(x,y));
+      else accent.push(makeAccent(x,y));
     }
-    if(stars.length > 1200) stars.splice(0, stars.length - 900);
+    if(cool.length>1000) cool.splice(0,cool.length-800);
+    if(warm.length>700) warm.splice(0,warm.length-600);
+    if(accent.length>220) accent.splice(0,accent.length-160);
   }
 
-  // start behavior: hide UI, scatter wide, show msg after 4s
+  // start / begin behaviour (tap anywhere)
   function begin(){
     if(running) return;
     running = true;
+    // hide UI
     ui.classList.add('hidden');
     hint.classList.add('hidden');
 
-    // immediate soft scatter across top
-    scatterWide();
+    // cinematic bloom on
+    bloom.classList.add('on');
+    // gently increase camera brightness filter for the "sky lit up" feeling
+    video.style.filter = 'brightness(1.1) contrast(1.05) saturate(1.05)';
+    // optional chime (if available)
+    try{ chime.currentTime = 0; chime.play().catch(()=>{}); }catch(e){}
 
-    // message after 4 seconds
-    setTimeout(()=>{ msg.classList.add('glow'); msg.style.opacity = 1; msg.style.transform='translateX(-50%) translateY(0)'; msg.setAttribute('aria-hidden','false'); }, 4000);
+    // scatter initial layers widely for instant "everywhere" feeling
+    scatterAll();
 
-    // gentle ongoing spawn ramp for first 18s
-    const ramp = setInterval(()=>{
-      // spawn across very wide top with spacing
-      spawnStarsInArea(20, w-20, 20, Math.max(60, h*0.65), 22 + Math.floor(Math.random()*8));
-    }, 900);
+    // ensure message after 4s
+    setTimeout(()=>{ msg.classList.add('show'); msg.setAttribute('aria-hidden','false'); }, 4000);
+
+    // maintain soft spawn for 18s
+    const ramp = setInterval(()=>{ spawnWideLayerAt(20, w-20, 20, Math.max(90, h*0.7), 32); }, 900);
     setTimeout(()=>clearInterval(ramp), 18000);
   }
 
@@ -238,8 +279,9 @@
   document.body.addEventListener('touchstart', begin, {passive:true});
   document.body.addEventListener('click', begin, {passive:true});
 
-  // if camera not granted, keep hint visible until user allows
-  if(!cameraGranted) hint.classList.remove('hidden');
+  // small fallback: if camera not allowed, keep hint visible
+  if(!cameraOK) hint.classList.remove('hidden');
+
 })();
 </script>
 </body>
