@@ -3,34 +3,25 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Dekha — Roshni</title>
+<title>Dekha — Roshni (gentle)</title>
 <style>
   :root{
-    --text:#ffffff;
+    --text:#fff;
     --muted:#e8e8e8;
-    --primary1: rgba(255,245,210,0.98);
-    --primary2: rgba(255,180,70,0.85);
-    --bg:#060608;
+    --bg:#050408;
   }
-  html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Arial;color:var(--text);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Arial;color:var(--text);-webkit-font-smoothing:antialiased}
   #app{position:relative;height:100vh;overflow:hidden}
-  video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);filter:brightness(0.58) contrast(1.06) saturate(1.05);z-index:1}
+  video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);filter:brightness(0.58) contrast(1.04) saturate(1.02);z-index:1}
   canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;z-index:20}
   .overlay{position:fixed;inset:0;z-index:30;pointer-events:none}
   .ui{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;text-align:center;z-index:40;pointer-events:auto}
-  button#start{background:linear-gradient(180deg,#fff7e8,#fff0d0);color:#111;border-radius:999px;padding:12px 18px;font-size:16px;border:none;box-shadow:0 12px 40px rgba(10,8,6,0.45)}
+  button#start{background:linear-gradient(180deg,#fff7e8,#fff0d0);color:#111;border-radius:999px;padding:12px 18px;font-size:16px;border:none;box-shadow:0 10px 30px rgba(10,8,6,0.35)}
   .hint{font-size:12px;color:var(--muted);margin-top:8px;opacity:0.95}
-  .msg{position:fixed;left:50%;transform:translateX(-50%) translateY(10px);bottom:100px;z-index:50;font-size:16px;padding:8px 14px;opacity:0;transition:opacity 700ms ease, transform 700ms cubic-bezier(.2,.9,.2,1);color:var(--text);text-align:center;border-radius:12px;backdrop-filter: blur(6px) saturate(1.1);pointer-events:none}
-  .msg.glow{background: linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.18));box-shadow:0 10px 40px rgba(0,0,0,0.5);text-shadow:0 0 18px rgba(255,220,130,0.55)}
-  .flash{position:fixed;inset:0;background:radial-gradient(circle at center, rgba(255,245,200,0.06), rgba(255,200,110,0.02) 25%, rgba(0,0,0,0) 60%);pointer-events:none;mix-blend-mode:screen;z-index:22;opacity:0;transition:opacity 300ms ease}
-  #close{position:fixed;right:14px;top:14px;z-index:60;background:rgba(0,0,0,0.35);color:#fff;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);display:none}
-  .sparkle-layer{position:fixed;inset:0;pointer-events:none;z-index:24;mix-blend-mode:screen;opacity:1}
-  /* subtle fade-in for start area */
-  .ui-enter{animation:uiFade 900ms ease both}
-  @keyframes uiFade{from{opacity:0;transform:translateX(-50%) translateY(6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-  @media (min-width:900px){ .msg{font-size:18px; bottom:120px} button#start{font-size:18px;padding:14px 22px} }
-  /* accessibility: keep controls tappable */
-  #ui{z-index:100;pointer-events:auto}
+  .msg{position:fixed;left:50%;transform:translateX(-50%) translateY(10px);bottom:60px;z-index:50;font-size:14px;padding:6px 12px;opacity:0;transition:opacity 700ms ease, transform 700ms cubic-bezier(.2,.9,.2,1);color:var(--text);text-align:center;border-radius:10px;backdrop-filter: blur(4px);pointer-events:none}
+  .msg.glow{background: rgba(0,0,0,0.22);box-shadow:0 8px 26px rgba(0,0,0,0.45)}
+  .sparkle-layer{position:fixed;inset:0;pointer-events:none;z-index:24;mix-blend-mode:screen}
+  @media (min-width:900px){ .msg{font-size:16px; bottom:84px} button#start{font-size:18px;padding:14px 22px} }
 </style>
 </head>
 <body>
@@ -40,7 +31,6 @@
 
   <div class="overlay">
     <div class="msg" id="msg">Dekha, roshni ho gayi har jagah ✨</div>
-    <div class="flash" id="flash"></div>
     <div class="sparkle-layer" id="sparks"></div>
   </div>
 
@@ -48,32 +38,23 @@
     <button id="start">Tap when pointing to the sky</button>
     <div class="hint">Best after sunset. Allow camera access and gently tilt your phone.</div>
   </div>
-
-  <button id="close">Close</button>
 </div>
-
-<!-- optional chime, keep in repo if you like -->
-<audio id="chime" src="chime.mp3" preload="auto"></audio>
 
 <script>
 (async function(){
-  // elements
   const video = document.getElementById('cam');
   const canvas = document.getElementById('fx');
   const ctx = canvas.getContext('2d', { alpha: true });
   const startBtn = document.getElementById('start');
   const msg = document.getElementById('msg');
-  const closeBtn = document.getElementById('close');
-  const flash = document.getElementById('flash');
   const sparksLayer = document.getElementById('sparks');
-  const chime = document.getElementById('chime');
 
-  // canvas size
+  // size
   let w = canvas.width = innerWidth;
   let h = canvas.height = innerHeight;
   window.addEventListener('resize', ()=>{ w = canvas.width = innerWidth; h = canvas.height = innerHeight; });
 
-  // graceful camera
+  // camera
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
     video.srcObject = stream;
@@ -83,251 +64,157 @@
     return;
   }
 
-  // particle containers
-  let big = [], small = [], ambient = [];
+  // particle arrays focus on small gentle specks
+  let specks = [];
   let running = false;
 
-  // create big particle
-  function makeBig(x,y){
+  function makeSpeck(x,y){
     return {
-      x: x + (Math.random()*120-60),
-      y: y + (Math.random()*80-40),
-      vx: (Math.random()*1.2-0.6),
-      vy: (Math.random()*-0.6-1.8),
-      life: 90 + Math.random()*160,
-      r: 3 + Math.random()*8,
-      glow: 0.9 + Math.random()*0.8,
-      alpha: 0.85 + Math.random()*0.25
-    };
-  }
-  function makeSmall(x,y){
-    return {
-      x: x + (Math.random()*220-110),
-      y: y + (Math.random()*140-70),
-      vx: (Math.random()*0.8-0.4),
-      vy: (Math.random()*-0.35-0.6),
-      life: 40 + Math.random()*90,
-      r: 0.8 + Math.random()*2.4,
-      glow: 0.5 + Math.random()*0.7
-    };
-  }
-  function makeAmbient(x,y){
-    return {
-      x: x + (Math.random()*300-150),
-      y: y + (Math.random()*220-110),
+      x: x + (Math.random()*60-30),
+      y: y + (Math.random()*40-20),
       vx: (Math.random()*0.6-0.3),
-      vy: (Math.random()*-0.35-0.6),
-      life: 50 + Math.random()*90,
-      r: 1 + Math.random()*3,
-      glow: 0.3 + Math.random()*0.6
+      vy: (Math.random()*-0.12-0.05),
+      life: 140 + Math.random()*220,
+      r: 0.6 + Math.random()*1.6,
+      tw: Math.random()*Math.PI*2,
+      hueShift: Math.random()*18 - 6,
+      alpha: 0.5 + Math.random()*0.6
     };
   }
 
-  // spawn bursts (center bias)
-  function spawnBurst(cx,cy,countBig=90,countSmall=140){
-    for(let i=0;i<countBig;i++) big.push(makeBig(cx,cy));
-    for(let i=0;i<countSmall;i++) small.push(makeSmall(cx,cy));
+  // spawn gently across the frame
+  function spawnSpecksAt(x,y,qty=6){
+    for(let i=0;i<qty;i++) specks.push(makeSpeck(x,y));
+    // cap total
+    if(specks.length>900) specks.splice(0, specks.length-700);
   }
 
-  // ambient continuous sparking (aesthetic)
-  function spawnAmbientAt(x,y,qty=6){
-    for(let i=0;i<qty;i++) ambient.push(makeAmbient(x,y));
-  }
-
-  // orientation-based target (follows tilt)
+  // orientation target
   let orientTarget = null;
   function setTargetFromOrientation(alpha,beta,gamma){
-    // gamma: left/right tilt (~ -90..90), beta: front/back (~ -180..180)
-    // map to screen coords
     const nx = (0.5 + (gamma || 0)/90 * 0.45) * w;
     const ny = (0.45 + (beta || 0)/180 * 0.45) * h;
     orientTarget = { x: nx, y: ny };
   }
-
-  // deviceorientation (mobile)
   if(window.DeviceOrientationEvent){
     try {
       window.addEventListener('deviceorientation', (ev)=>{
-        // some browsers deliver nulls — guard
         const g = ev.gamma || 0;
         const b = ev.beta || 0;
         setTargetFromOrientation(ev.alpha, b, g);
       }, true);
-    } catch(e){ /* ignore */ }
+    } catch(e){}
   }
 
-  // animation loop
+  // draw loop
   function step(){
-    // draw subtle overlay to keep trails gently
     ctx.clearRect(0,0,w,h);
-    ctx.globalCompositeOperation = 'source-over';
+    // gentle dark overlay to create soft trails
     ctx.fillStyle = 'rgba(0,0,0,0.06)';
     ctx.fillRect(0,0,w,h);
 
-    // draw big particles (glow)
-    for(let i=big.length-1;i>=0;i--){
-      const p = big[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.005;
+    // move and draw specks
+    for(let i=specks.length-1;i>=0;i--){
+      const p = specks[i];
+      // subtle perlin-ish drift via tw
+      p.tw += 0.006 + Math.random()*0.006;
+      p.x += p.vx + Math.sin(p.tw)*0.14;
+      p.y += p.vy + Math.cos(p.tw)*0.06;
+      p.vy += 0.0002;
       p.life--;
-      const grad = ctx.createRadialGradient(p.x,p.y,p.r*0.2,p.x,p.y,p.r*12);
-      grad.addColorStop(0, `rgba(255,250,210,${0.98*p.alpha})`);
-      grad.addColorStop(0.25, `rgba(255,210,120,${0.75*p.alpha})`);
-      grad.addColorStop(0.65, `rgba(255,150,60,${0.28*p.alpha})`);
-      grad.addColorStop(1, `rgba(0,0,0,0)`);
+      const lifeFactor = Math.max(0, Math.min(1, p.life / 260));
+      const glow = 8 + p.r*6;
+      const gx = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,glow);
+      const warm = `rgba(${255},${235 - (p.hueShift*1.2|0)},${180 - (p.hueShift|0)},${(0.65 * p.alpha * lifeFactor)})`;
+      gx.addColorStop(0, warm);
+      gx.addColorStop(0.35, `rgba(255,200,120,${0.28 * lifeFactor * p.alpha})`);
+      gx.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = grad;
+      ctx.fillStyle = gx;
       ctx.beginPath();
-      ctx.arc(p.x,p.y,p.r*9,0,Math.PI*2);
+      ctx.arc(p.x,p.y,Math.max(1, p.r*4),0,Math.PI*2);
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
-      if(p.life<=0 || p.y < -120 || p.x < -120 || p.x > w + 120) big.splice(i,1);
+      if(p.life<=0 || p.x < -60 || p.x > w+60 || p.y < -60) specks.splice(i,1);
     }
-
-    // small sparkles
-    for(let i=small.length-1;i>=0;i--){
-      const p = small[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.002;
-      p.life--;
-      ctx.globalAlpha = 0.95 * (Math.min(1, p.life/60));
-      ctx.fillStyle = `rgba(255,235,190,${0.95*p.glow})`;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,p.r*3,0,Math.PI*2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      if(p.life<=0) small.splice(i,1);
-    }
-
-    // ambient sparks (smaller)
-    for(let i=ambient.length-1;i>=0;i--){
-      const p = ambient[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.0015;
-      p.life--;
-      const alpha = Math.max(0, Math.min(1, p.life/80));
-      ctx.fillStyle = `rgba(255,235,200,${0.75*alpha*p.glow})`;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,p.r*2,0,Math.PI*2);
-      ctx.fill();
-      if(p.life<=0) ambient.splice(i,1);
-    }
-
     requestAnimationFrame(step);
   }
   step();
 
-  // sparkle DOM overlay for soft bloom (complementary to canvas)
-  function softBloomPulse(){
+  // DOM soft sparkles (complementary, subtle)
+  function renderDOMSparks(){
     sparksLayer.innerHTML = '';
-    const count = 18;
-    for(let i=0;i<count;i++){
-      const d = document.createElement('div');
-      const size = 40 + Math.random()*120;
-      d.style.position = 'absolute';
-      d.style.left = (Math.random()*100)+'%';
-      d.style.top = (Math.random()*80)+'%';
-      d.style.width = size+'px';
-      d.style.height = size+'px';
-      d.style.borderRadius = '50%';
-      d.style.background = 'radial-gradient(circle, rgba(255,245,200,0.95), rgba(255,200,80,0.32), rgba(255,120,50,0.05))';
-      d.style.filter = 'blur(18px)';
-      d.style.opacity = 0;
-      d.style.transform = 'translateY(20px) scale(0.86)';
-      d.style.transition = 'all 700ms cubic-bezier(.2,.9,.2,1)';
-      sparksLayer.appendChild(d);
-      setTimeout(()=>{ d.style.opacity = 1; d.style.transform = 'translateY(0) scale(1)'; }, 30*i);
-      setTimeout(()=>{ d.style.opacity = 0; }, 4200 + Math.random()*1200);
+    const smallCount = 30;
+    for(let i=0;i<smallCount;i++){
+      const el = document.createElement('div');
+      const s = 6 + Math.random()*12;
+      el.style.position = 'absolute';
+      el.style.left = (Math.random()*100) + '%';
+      el.style.top = (Math.random()*85) + '%';
+      el.style.width = s + 'px';
+      el.style.height = s + 'px';
+      el.style.borderRadius = '50%';
+      el.style.background = 'radial-gradient(circle, rgba(255,245,210,0.95), rgba(255,200,120,0.25))';
+      el.style.filter = 'blur(6px)';
+      el.style.opacity = (0.08 + Math.random()*0.28).toString();
+      el.style.transition = 'opacity 1200ms linear, transform 1600ms ease';
+      sparksLayer.appendChild(el);
     }
   }
+  renderDOMSparks();
+  setInterval(renderDOMSparks, 5400);
 
-  // UX: message delay 3s, smaller bottom text
-  msg.style.fontSize = '15px';
-  msg.style.padding = '6px 12px';
-  msg.style.bottom = '48px';
-  msg.classList.add('msg','glow');
-  // show UI nicely
-  document.getElementById('ui').classList.add('ui-enter');
+  // smooth orient-follow spawning
+  let lastOrient = { x: w/2, y: h/2 };
+  setInterval(()=>{
+    // pick spawn origin near orient target if available
+    let sx = w*0.5 + (Math.random()*120-60), sy = h*0.5 + (Math.random()*80-40);
+    if(orientTarget){
+      // lerp lastOrient -> orientTarget to keep motion smooth
+      lastOrient.x += (orientTarget.x - lastOrient.x) * 0.18;
+      lastOrient.y += (orientTarget.y - lastOrient.y) * 0.18;
+      sx = lastOrient.x + (Math.random()*80-40);
+      sy = lastOrient.y + (Math.random()*60-30);
+    } else {
+      // gentle wandering origin
+      lastOrient.x += (Math.random()*40-20);
+      lastOrient.y += (Math.random()*20-10);
+      sx = Math.max(40, Math.min(w-40, lastOrient.x));
+      sy = Math.max(40, Math.min(h-40, lastOrient.y));
+    }
+    spawnSpecksAt(sx, sy, 8 + Math.floor(Math.random()*6));
+  }, 360);
 
-  // on start tap
+  // start UX: message delay 3s
+  msg.style.fontSize = '14px';
+  msg.classList.add('glow');
   startBtn.addEventListener('click', ()=>{
     if(running) return;
     running = true;
-    // chime (optional)
-    try{ chime.currentTime = 0; chime.play().catch(()=>{}); }catch(e){}
-    // show message after 3s
-    setTimeout(()=>{
-      msg.style.opacity = 1;
-      msg.style.transform = 'translateX(-50%) translateY(0)';
-    }, 3000);
-    // center spawn
-    const cx = w/2;
-    const cy = h * 0.6;
-    spawnBurst(cx, cy, 110, 150);
-
-    // repeated cinematic bursts but softer
-    let bursts = 0;
-    const interval = setInterval(()=>{
-      // if device orientation available, prefer the target
-      let tx = cx + (Math.random()*240-120);
-      let ty = cy + (Math.random()*80-40);
-      if(orientTarget){
-        tx = orientTarget.x + (Math.random()*120-60);
-        ty = orientTarget.y + (Math.random()*80-40);
-      }
-      spawnBurst(tx, ty, 44, 80);
-      spawnAmbientAt(tx, ty, 8);
-      softBloomPulse();
-      bursts++;
-      if(bursts > 12){ clearInterval(interval); finalRave(); }
-    }, 220);
-
-    function finalRave(){
-      // final wide burst
-      spawnBurst(w*0.5, h*0.5, 200, 260);
-      spawnAmbientAt(w*0.5, h*0.5, 30);
-      flash.style.opacity = 0.14;
-      setTimeout(()=>{ flash.style.opacity = 0; }, 700);
-      closeBtn.style.display = 'block';
-      document.getElementById('ui').style.display = 'none';
+    setTimeout(()=>{ msg.style.opacity = 1; msg.style.transform = 'translateX(-50%) translateY(0)'; }, 3000);
+    // gentle initial spread across screen
+    for(let i=0;i<40;i++){
+      spawnSpecksAt( Math.random()*w, Math.random()*h, 4 );
     }
+    // gradually increase density a bit
+    const ramp = setInterval(()=>{
+      spawnSpecksAt(Math.random()*w, Math.random()*h, 6);
+    }, 700);
+    setTimeout(()=>{ clearInterval(ramp); }, 16000);
   });
 
-  // also allow tap on canvas to start
+  // allow touch on canvas to start
   canvas.addEventListener('touchstart', (e)=>{ if(!running) startBtn.click(); });
 
-  // repeat ambient spawning near orientation target periodically
+  // small interaction: allow re-tap after 40s to refresh subtle cloud
   setInterval(()=>{
-    if(orientTarget){
-      // spawn small cluster near the target
-      for(let i=0;i<4;i++){
-        spawnAmbientAt( orientTarget.x + (Math.random()*80-40), orientTarget.y + (Math.random()*60-30), 2 );
+    if(running){
+      // spawn soft pockets scattered
+      for(let i=0;i<6;i++){
+        spawnSpecksAt(Math.random()*w, Math.random()*h, 5);
       }
-    } else {
-      // ambient random speckles across screen
-      spawnAmbientAt(Math.random()*w, Math.random()*h, 3);
     }
-  }, 600);
-
-  // close handler
-  closeBtn.addEventListener('click', ()=>{
-    msg.style.opacity = 0; msg.style.transform = 'translateX(-50%) translateY(8px)';
-    running = false;
-    big = []; small = []; ambient = [];
-    closeBtn.style.display = 'none';
-    document.getElementById('ui').style.display = 'block';
-  });
-
-  // optional: if no orientation available, show hint to tilt for full effect
-  setTimeout(()=>{
-    if(!orientTarget){
-      // gentle hint (non-intrusive)
-      // (we won't prompt aggressively — keep the UI simple)
-    }
-  }, 1200);
+  }, 11000);
 
 })();
 </script>
