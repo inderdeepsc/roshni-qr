@@ -1,9 +1,10 @@
 <!doctype html>
+
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Dekha — The Sky Lit Up (final)</title>
+<title>Dekha — The Sky Lit Up (final - punchier)</title>
 <style>
   :root{
     --bg:#030311;
@@ -34,22 +35,14 @@
 <body>
 <div id="app">
   <video id="cam" playsinline autoplay muted></video>
-  <canvas id="fx"></canvas>
-
-  <div class="bloom" id="bloom"><div class="glow"></div></div>
-
-  <div class="overlay">
+  <canvas id="fx"></canvas>  <div class="bloom" id="bloom"><div class="glow"></div></div>  <div class="overlay">
     <div class="msg" id="msg" aria-hidden="true">Dekha, roshni ho gayi har jagah ✨</div>
     <div class="sparkle-layer" id="sparks"></div>
-  </div>
-
-  <div class="ui" id="ui" role="button" aria-label="Start overlay">
+  </div>  <div class="ui" id="ui" role="button" aria-label="Start overlay">
     <button id="start">Tap anywhere to begin</button>
     <div class="hint" id="hint">Open this outdoors at night, point at the sky and tap.</div>
   </div>
-</div>
-
-<audio id="chime"></audio>
+</div><audio id="chime"></audio>
 
 <script>
 (async function(){
@@ -119,13 +112,13 @@
     }
   }
 
-  // draw: bright core + tight halo for each layer
+  // draw: bright core + tight halo for each layer (with colour variance + punch)
   function step(){
     ctx.clearRect(0,0,w,h);
     ctx.fillStyle = 'rgba(0,0,0,0.04)';
     ctx.fillRect(0,0,w,h);
 
-    // cool layer (crisp core + subtle halo)
+    // cool layer (crisp core + subtle halo) — bluish range with variance
     for(let i=cool.length-1;i>=0;i--){
       const s = cool[i];
       s.tw += 0.007 + Math.random()*0.01;
@@ -136,16 +129,17 @@
       const lf = Math.max(0, Math.min(1, s.life/420));
       const alpha = Math.min(1, s.a * (0.6 + 0.6*t) * lf);
 
-      // bright crisp core
-      const coreColor = `rgba(245,250,255,${Math.min(1, 1.0 * alpha)})`;
+      // hue variance for magic
+      const hueShift = 200 + Math.random()*70; // ~200–270 (cyan→pale blue)
+      const coreColor = `hsla(${hueShift}, 100%, 88%, ${Math.min(1, 1.25 * alpha)})`;
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = coreColor;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, Math.max(0.8, s.r * 1.2), 0, Math.PI*2);
+      ctx.arc(s.x, s.y, Math.max(0.9, s.r * 1.4), 0, Math.PI*2);
       ctx.fill();
 
       // tight halo
-      const haloColor = `rgba(180,200,255,${0.10 * lf})`;
+      const haloColor = `hsla(${hueShift}, 100%, 75%, ${0.10 * lf})`;
       const glow = 3 + s.r * 2;
       const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,glow);
       g.addColorStop(0.12, coreColor);
@@ -154,7 +148,7 @@
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(s.x,s.y, Math.max(1.2, s.r * 3.0), 0, Math.PI*2); ctx.fill();
 
-      // subtle outline for clarity
+      // subtle outline
       ctx.strokeStyle = `rgba(245,250,255,${0.18 * alpha})`;
       ctx.lineWidth = 0.45;
       ctx.stroke();
@@ -163,7 +157,7 @@
       if(s.life<=0 || s.x<-80 || s.x>w+80 || s.y<-120) cool.splice(i,1);
     }
 
-    // warm layer (golden cores with smaller halo)
+    // warm layer (golden cores with smaller halo) — warm range with variance
     for(let i=warm.length-1;i>=0;i--){
       const wv = warm[i];
       wv.tw += 0.005 + Math.random()*0.009;
@@ -174,16 +168,15 @@
       const lf = Math.max(0, Math.min(1, wv.life/360));
       const alpha = Math.min(1, wv.a * (0.5 + 0.7*t) * lf);
 
-      // warm core
-      const coreColor = `rgba(255,245,210,${Math.min(1, 0.98 * alpha)})`;
+      const hueShift = 25 + Math.random()*30; // 25–55 (warm gold/orange)
+      const coreColor = `hsla(${hueShift}, 100%, 82%, ${Math.min(1, 1.25 * alpha)})`;
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = coreColor;
       ctx.beginPath();
-      ctx.arc(wv.x, wv.y, Math.max(0.9, wv.r * 1.4), 0, Math.PI*2);
+      ctx.arc(wv.x, wv.y, Math.max(1.0, wv.r * 1.6), 0, Math.PI*2);
       ctx.fill();
 
-      // warm halo (tight)
-      const haloColor = `rgba(255,200,120,${0.08 * lf})`;
+      const haloColor = `hsla(${hueShift}, 100%, 70%, ${0.08 * lf})`;
       const glow = 4 + wv.r * 3;
       const g2 = ctx.createRadialGradient(wv.x,wv.y,0,wv.x,wv.y,glow);
       g2.addColorStop(0.12, coreColor);
@@ -200,7 +193,7 @@
       if(wv.life<=0 || wv.x<-120 || wv.x>w+120 || wv.y<-160) warm.splice(i,1);
     }
 
-    // accent lavenders (crisp)
+    // accent lavenders (crisp, violet-ish variance)
     for(let i=accent.length-1;i>=0;i--){
       const a = accent[i];
       a.tw += 0.01 + Math.random()*0.02;
@@ -211,14 +204,15 @@
       const lf = Math.max(0, Math.min(1, a.life / 220));
       const alpha = Math.min(1, a.a * (0.6 + 0.8*t) * lf);
 
-      const coreColor = `rgba(240,190,255,${Math.min(1, 0.98 * alpha)})`;
+      const hueShift = 260 + Math.random()*60; // 260–320 (violet → magenta)
+      const coreColor = `hsla(${hueShift}, 100%, 86%, ${Math.min(1, 1.25 * alpha)})`;
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = coreColor;
       ctx.beginPath();
-      ctx.arc(a.x, a.y, Math.max(0.8, a.r * 1.2), 0, Math.PI*2);
+      ctx.arc(a.x, a.y, Math.max(0.9, a.r * 1.4), 0, Math.PI*2);
       ctx.fill();
 
-      const haloColor = `rgba(220,180,255,${0.08 * lf})`;
+      const haloColor = `hsla(${hueShift}, 100%, 75%, ${0.08 * lf})`;
       const glow = 3 + a.r * 3;
       const g3 = ctx.createRadialGradient(a.x,a.y,0,a.x,a.y,glow);
       g3.addColorStop(0.12, coreColor);
@@ -323,6 +317,5 @@
   if(!cameraOK) hint.classList.remove('hidden');
 
 })();
-</script>
-</body>
+</script></body>
 </html>
