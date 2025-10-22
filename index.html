@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>Dekha — The Sky Lit Up</title>
+<title>Dekha — The Sky Lit Up (crisper)</title>
 <style>
   :root{
     --bg:#030311;
@@ -12,14 +12,12 @@
   }
   html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Arial;color:var(--text);-webkit-font-smoothing:antialiased}
   #app{position:relative;height:100vh;overflow:hidden}
-  /* camera feed */
-  video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);
-    filter:brightness(0.44) contrast(1.02) saturate(0.98);z-index:1;transition:filter 800ms ease;}
-  /* canvas for particles */
+  /* removed mirror transform */
+  video#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;
+    filter:brightness(0.44) contrast(1.02) saturate(0.98);z-index:1;transition:filter 900ms ease;}
   canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;z-index:22}
-  /* bloom overlay that grows to brighten whole frame */
-  .bloom{position:fixed;inset:0;z-index:24;pointer-events:none;mix-blend-mode:screen;opacity:0;transition:opacity 800ms ease;}
-  .bloom .glow{position:absolute;inset:-20%;background:radial-gradient(circle at 50% 30%, rgba(255,240,210,0.18), rgba(255,200,120,0.08) 18%, rgba(0,0,0,0) 48%);filter:blur(28px);opacity:0.0;transform:scale(0.92);transition:all 900ms cubic-bezier(.2,.9,.2,1)}
+  .bloom{position:fixed;inset:0;z-index:24;pointer-events:none;mix-blend-mode:screen;opacity:0;transition:opacity 900ms ease;}
+  .bloom .glow{position:absolute;inset:-20%;background:radial-gradient(circle at 50% 30%, rgba(255,240,210,0.18), rgba(255,200,120,0.08) 18%, rgba(0,0,0,0) 48%);filter:blur(28px);opacity:0;transform:scale(0.92);transition:all 900ms cubic-bezier(.2,.9,.2,1)}
   .bloom.on{opacity:1}
   .bloom.on .glow{opacity:1;transform:scale(1.06)}
   .overlay{position:fixed;inset:0;z-index:26;pointer-events:none}
@@ -51,14 +49,9 @@
   </div>
 </div>
 
-<!-- tiny chime: short pleasant bell (base64 small) -->
-<audio id="chime">
-  <source src="data:audio/mp3;base64,//uQZAAAAAAAAAAAAAAAAAAAA..." type="audio/mp3">
-  <!-- note: replace the base64 with your own chime if desired -->
-</audio>
+<audio id="chime"></audio>
 
 <script>
-/* ---------- core behaviour: star + warm dust + bloom brighten ---------- */
 (async function(){
   const video = document.getElementById('cam');
   const canvas = document.getElementById('fx');
@@ -70,7 +63,6 @@
   const bloom = document.getElementById('bloom');
   const chime = document.getElementById('chime');
 
-  // size
   let w = canvas.width = innerWidth;
   let h = canvas.height = innerHeight;
   addEventListener('resize', ()=>{ w = canvas.width = innerWidth; h = canvas.height = innerHeight; });
@@ -86,52 +78,54 @@
     console.warn('camera denied', e);
   }
 
-  // particle arrays (3 layers)
+  // particle layers
   let cool = [], warm = [], accent = [];
   let running = false;
 
-  // helpers: create star-like objects for each layer
   function makeCool(x,y){
-    return { x, y, vx:(Math.random()*0.16-0.08), vy:(Math.random()*-0.05-0.01), life:200+Math.random()*320, r:0.6+Math.random()*1.6, tw:Math.random()*6.28, a:0.45+Math.random()*0.45 };
+    return { x, y, vx:(Math.random()*0.16-0.08), vy:(Math.random()*-0.06-0.015), life:200+Math.random()*320, r:0.6+Math.random()*1.6, tw:Math.random()*6.28, a:0.45+Math.random()*0.45 };
   }
   function makeWarm(x,y){
-    return { x, y, vx:(Math.random()*0.12-0.06), vy:(Math.random()*-0.04-0.01), life:140+Math.random()*260, r:1+Math.random()*2.2, tw:Math.random()*6.28, a:0.28+Math.random()*0.48 };
+    return { x, y, vx:(Math.random()*0.12-0.06), vy:(Math.random()*-0.045-0.01), life:140+Math.random()*260, r:1+Math.random()*2.2, tw:Math.random()*6.28, a:0.28+Math.random()*0.48 };
   }
   function makeAccent(x,y){
     return { x, y, vx:(Math.random()*0.18-0.09), vy:(Math.random()*-0.06-0.02), life:80+Math.random()*160, r:0.8+Math.random()*1.6, tw:Math.random()*6.28, a:0.6+Math.random()*0.4 };
   }
 
-  // spawn across wide top area with spacing (no centre-bunching)
-  function spawnWideLayer(layerFn, qty){
-    const topLimit = Math.max(60, h * 0.68); // bias to upper ~68%
+  function spawnAtXY(x,y, probCool=0.62, probWarm=0.26){
+    const r = Math.random();
+    if(r < probCool) cool.push(makeCool(x,y));
+    else if(r < probCool + probWarm) warm.push(makeWarm(x,y));
+    else accent.push(makeAccent(x,y));
+    if(cool.length>1000) cool.splice(0,cool.length-800);
+    if(warm.length>700) warm.splice(0,warm.length-600);
+    if(accent.length>220) accent.splice(0,accent.length-160);
+  }
+
+  function spawnWideLayerAt(x1,x2,y1,y2, qty){
     for(let i=0;i<qty;i++){
+      const x = x1 + Math.random()*(x2-x1);
+      const y = y1 + Math.random()*(y2-y1);
+      spawnAtXY(x,y);
+    }
+  }
+
+  function initialSoftSprinkle(){
+    const topLimit = Math.max(60, h*0.65);
+    for(let i=0;i<28;i++){
       const x = 20 + Math.random()*(w-40);
       const y = 8 + Math.random()*topLimit;
-      const obj = layerFn(x,y);
-      if(layerFn === makeCool) cool.push(obj);
-      else if(layerFn === makeWarm) warm.push(obj);
-      else accent.push(obj);
+      spawnAtXY(x,y);
     }
-    // caps
-    if(cool.length>900) cool.splice(0,cool.length-700);
-    if(warm.length>600) warm.splice(0,warm.length-480);
-    if(accent.length>180) accent.splice(0,accent.length-140);
   }
 
-  // wide soft scatter quickly
-  function scatterAll(){
-    spawnWideLayer(makeCool, 140);
-    spawnWideLayer(makeWarm, 70);
-    spawnWideLayer(makeAccent, 18);
-  }
-
-  // draw loop: gentle upward motion, twinkle, mixed colors
+  // draw: crisper stars (reduced glow, tighter gradients, subtle stroke)
   function step(){
     ctx.clearRect(0,0,w,h);
-    // faint overlay to leave soft trails
-    ctx.fillStyle = 'rgba(0,0,0,0.04)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    ctx.fillRect(0,0,w,h);
 
-    // draw cool stars (silver/blue)
+    // cool layer (crisper)
     for(let i=cool.length-1;i>=0;i--){
       const s = cool[i];
       s.tw += 0.007 + Math.random()*0.01;
@@ -141,21 +135,26 @@
       const t = 0.5 + 0.5*Math.sin(s.tw*1.7);
       const lf = Math.max(0, Math.min(1, s.life/420));
       const alpha = Math.min(1, s.a * (0.6 + 0.6*t) * lf);
-      const core = `rgba(${230},${240},${255},${alpha})`;
-      const halo = `rgba(180,200,255,${0.16 * lf})`;
-      const glow = 10 + s.r*7;
+      const core = `rgba(230,240,255,${alpha})`;
+      const halo = `rgba(180,200,255,${0.12 * lf})`;
+      // sharper glow radius
+      const glow = 4 + s.r*4;
       const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,glow);
-      g.addColorStop(0, core);
-      g.addColorStop(0.35, halo);
+      g.addColorStop(0.12, core);
+      g.addColorStop(0.28, halo);
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.globalCompositeOperation='lighter';
       ctx.fillStyle=g;
-      ctx.beginPath(); ctx.arc(s.x,s.y, Math.max(1.2, s.r*4.4),0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x,s.y, Math.max(1.2, s.r*3.2),0,Math.PI*2); ctx.fill();
+      // subtle crisp outline
+      ctx.strokeStyle = `rgba(230,240,255,${0.28*alpha})`;
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
       ctx.globalCompositeOperation='source-over';
       if(s.life<=0 || s.x<-80 || s.x>w+80 || s.y<-120) cool.splice(i,1);
     }
 
-    // draw warm dust (golden, larger, subtler)
+    // warm layer (crisper)
     for(let i=warm.length-1;i>=0;i--){
       const wv = warm[i];
       wv.tw += 0.005 + Math.random()*0.009;
@@ -166,20 +165,23 @@
       const lf = Math.max(0, Math.min(1, wv.life/360));
       const alpha = Math.min(1, wv.a * (0.5 + 0.7*t) * lf);
       const core = `rgba(255,245,210,${alpha})`;
-      const halo = `rgba(255,200,120,${0.12 * lf})`;
-      const glow = 12 + wv.r*8;
+      const halo = `rgba(255,200,120,${0.10 * lf})`;
+      const glow = 5 + wv.r*5;
       const g2 = ctx.createRadialGradient(wv.x,wv.y,0,wv.x,wv.y,glow);
-      g2.addColorStop(0, core);
-      g2.addColorStop(0.35, halo);
+      g2.addColorStop(0.12, core);
+      g2.addColorStop(0.30, halo);
       g2.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.globalCompositeOperation='lighter';
       ctx.fillStyle=g2;
-      ctx.beginPath(); ctx.arc(wv.x,wv.y, Math.max(1.6, wv.r*5.2),0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(wv.x,wv.y, Math.max(1.6, wv.r*3.8),0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = `rgba(255,245,210,${0.22*alpha})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
       ctx.globalCompositeOperation='source-over';
       if(wv.life<=0 || wv.x<-120 || wv.x>w+120 || wv.y<-160) warm.splice(i,1);
     }
 
-    // accent tiny lavenders (rare twinkles)
+    // accent tiny lavenders (crisper)
     for(let i=accent.length-1;i>=0;i--){
       const a = accent[i];
       a.tw += 0.01 + Math.random()*0.02;
@@ -190,15 +192,18 @@
       const lf = Math.max(0, Math.min(1, a.life / 220));
       const alpha = Math.min(1, a.a * (0.6 + 0.8*t) * lf);
       const core = `rgba(240,190,255,${alpha})`;
-      const halo = `rgba(220,180,255,${0.14 * lf})`;
-      const glow = 8 + a.r*6;
+      const halo = `rgba(220,180,255,${0.10 * lf})`;
+      const glow = 4 + a.r*4;
       const g3 = ctx.createRadialGradient(a.x,a.y,0,a.x,a.y,glow);
-      g3.addColorStop(0, core);
-      g3.addColorStop(0.3, halo);
+      g3.addColorStop(0.12, core);
+      g3.addColorStop(0.28, halo);
       g3.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.globalCompositeOperation='lighter';
       ctx.fillStyle=g3;
-      ctx.beginPath(); ctx.arc(a.x,a.y, Math.max(1.0, a.r*3.8),0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(a.x,a.y, Math.max(1.0, a.r*3.0),0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = `rgba(240,190,255,${0.22*alpha})`;
+      ctx.lineWidth = 0.45;
+      ctx.stroke();
       ctx.globalCompositeOperation='source-over';
       if(a.life<=0 || a.x<-80 || a.x>w+80 || a.y<-120) accent.splice(i,1);
     }
@@ -207,7 +212,7 @@
   }
   step();
 
-  // orientation-based spawn bias
+  // orientation target
   let orientTarget = null, lastOrient = { x:w/2, y:h*0.32 };
   function setTargetFromOrientation(a,b,g){
     const nx = (0.5 + (g||0)/90 * 0.5) * w;
@@ -218,68 +223,67 @@
     window.addEventListener('deviceorientation', (ev)=>{ setTargetFromOrientation(ev.alpha, ev.beta||0, ev.gamma||0); }, true);
   }
 
-  // periodic spawns across wide top + orient-biased clusters
-  setInterval(()=>{
-    if(orientTarget){
-      lastOrient.x += (orientTarget.x - lastOrient.x) * 0.16;
-      lastOrient.y += (orientTarget.y - lastOrient.y) * 0.16;
-      spawnWideLayerAt(lastOrient.x-180, lastOrient.x+180, Math.max(20,lastOrient.y-90), Math.min(h-40, lastOrient.y+90), 14);
-    } else {
-      // wide distributed spawn across upper 70%
-      spawnWideLayerAt(20, w-20, 20, Math.max(80, h*0.7), 28);
-    }
-    // occasional warm cloud
-    if(Math.random()<0.08) spawnWideLayerAt(40, w-40, 20, Math.max(120, h*0.6), 36);
-  }, 520);
+  // ramp logic
+  let startTime = null;
+  const rampDuration = 8000;
 
-  function spawnWideLayerAt(x1,x2,y1,y2, qty){
-    for(let i=0;i<qty;i++){
-      const x = x1 + Math.random()*(x2-x1);
-      const y = y1 + Math.random()*(y2-y1);
-      // mix probabilities between layers
-      const r = Math.random();
-      if(r < 0.62) cool.push(makeCool(x,y));
-      else if(r < 0.88) warm.push(makeWarm(x,y));
-      else accent.push(makeAccent(x,y));
-    }
-    if(cool.length>1000) cool.splice(0,cool.length-800);
-    if(warm.length>700) warm.splice(0,warm.length-600);
-    if(accent.length>220) accent.splice(0,accent.length-160);
+  function rampFactor(now){
+    if(!startTime) return 0;
+    return Math.min(1, Math.max(0, (now - startTime) / rampDuration));
   }
 
-  // start / begin behaviour (tap anywhere)
+  let spawnerHandle = null;
+  function startSpawner(){
+    if(spawnerHandle) clearInterval(spawnerHandle);
+    spawnerHandle = setInterval(()=>{
+      const now = performance.now();
+      const rf = rampFactor(now);
+      const base = Math.round(8 * (0.25 + 0.75 * rf));
+      if(orientTarget && Math.random() < 0.6){
+        const sx = lastOrient.x + (Math.random()*180-90);
+        const sy = lastOrient.y + (Math.random()*90-45);
+        spawnWideLayerAt(Math.max(20, sx-120), Math.min(w-20, sx+120), Math.max(20, sy-80), Math.min(h-40, sy+80), Math.max(4, base/2));
+      } else {
+        const topY = Math.max(60, h * 0.72);
+        spawnWideLayerAt(20, w-20, 20, topY, Math.max(6, base));
+      }
+      if(Math.random() < 0.12 * (0.4 + 0.6*rf)) {
+        spawnWideLayerAt(40, w-40, 20, Math.max(120, h*0.6), Math.round(6 * (0.4 + 0.6*rf)));
+      }
+    }, 420);
+  }
+
+  function gentleIntro(){
+    initialSoftSprinkle();
+  }
+
   function begin(){
     if(running) return;
     running = true;
-    // hide UI
+    startTime = performance.now();
     ui.classList.add('hidden');
     hint.classList.add('hidden');
 
-    // cinematic bloom on
     bloom.classList.add('on');
-    // gently increase camera brightness filter for the "sky lit up" feeling
-    video.style.filter = 'brightness(1.1) contrast(1.05) saturate(1.05)';
-    // optional chime (if available)
+    // moderate brighten (tweak if needed)
+    video.style.filter = 'brightness(1.06) contrast(1.04) saturate(1.04)';
     try{ chime.currentTime = 0; chime.play().catch(()=>{}); }catch(e){}
+    gentleIntro();
+    startSpawner();
 
-    // scatter initial layers widely for instant "everywhere" feeling
-    scatterAll();
+    setTimeout(()=>{ 
+  msg.classList.add('show'); 
+  msg.setAttribute('aria-hidden','false'); 
+}, 6000);   // show after 6 seconds
 
-    // ensure message after 4s
-    setTimeout(()=>{ msg.classList.add('show'); msg.setAttribute('aria-hidden','false'); }, 4000);
-
-    // maintain soft spawn for 18s
-    const ramp = setInterval(()=>{ spawnWideLayerAt(20, w-20, 20, Math.max(90, h*0.7), 32); }, 900);
-    setTimeout(()=>clearInterval(ramp), 18000);
+    setTimeout(()=>{ if(spawnerHandle){ clearInterval(spawnerHandle); spawnerHandle = setInterval(()=>{ spawnWideLayerAt(20, w-20, 20, Math.max(80, h*0.7), 18); }, 1200); } }, rampDuration + 9000);
   }
 
-  // wire taps reliably
   startBtn.addEventListener('click', begin, {passive:true});
   canvas.addEventListener('touchstart', begin, {passive:true});
   document.body.addEventListener('touchstart', begin, {passive:true});
   document.body.addEventListener('click', begin, {passive:true});
 
-  // small fallback: if camera not allowed, keep hint visible
   if(!cameraOK) hint.classList.remove('hidden');
 
 })();
